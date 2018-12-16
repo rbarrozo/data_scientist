@@ -1,0 +1,872 @@
+---
+output:
+  word_document: default
+  html_document: default
+---
+ENEM 2017 - Análise Exploratória de Dados
+========================================================
+por Ronaldo Barrozo
+========================================================
+O objetivo dessa análise explorátorio de dados é verificar se o tipo de escola que o aluno frequentou: privada ou pública, a renda familiar, a profissão dos pais, se tem computadot na residência e acesso a internet influenciam no resultado obtido no Exame Nacional do Ensino - ENEM.
+
+A análise foi feita com base nos microdados o Enem e do Censo Escolar de 2017 disponibilizados pelo Instituto Nacional de Estudos e Pesquisas Educacionais Anísio Teixeira (Inep), órgão vinculado ao Ministério da Educação (MEC).
+
+O conjunto de dados original possui mais de 1,3 milhão de observações de notas e informações de estudantes que fizeram a prova no ano de 2017, no entanto, para esssa análise devido ao grande volume de dados foi considerado apenas os estudantes que realizaram as provas do estado de São Paulo.
+
+*Fonte dos Dados:*
+
+- http://portal.inep.gov.br/microdados - Dados do ENEM
+
+- http://download.inep.gov.br/microdados/microdados_enem2017.zip - Link do Arquivo
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+# Carregue aqui todos os pacotes utilizados 
+# na sua análise realizada neste arquivo fonte.
+
+# Note que o parâmetro "echo" foi definido como FALSE neste código.
+# Isso previne que o código apresente resultados formatados em HTML.
+# Você deve definir echo=FALSE para todos os blocos de código no seu arquivo.
+
+if(!require(ggplot2)){install.packages('ggplot2')}
+if(!require(dplyr)){install.packages('dplyr')}
+if(!require(GGally)){install.packages('GGally')}
+
+```
+
+```{r echo=FALSE, Load_the_Data}
+# Carregamento dos dados
+
+# carregar dados do enem do estado de são paulo
+enem_sp_raw <- read.csv("sp_enem_2017.csv",sep=";")
+
+# limpeza dos dados
+# considerar apenas candidatos que tenham realizado todas as provas e não sejam treineiros
+enem = subset(enem_sp_raw,TP_PRESENCA_CN == 1 & TP_PRESENCA_CH == 1 &      TP_PRESENCA_LC == 1 & TP_PRESENCA_MT == 1 & IN_TREINEIRO == 0 & Q001 != 'H' & Q002 != 'H')
+
+
+# libera memória do dataset que não será mais utilizado
+enem_sp_raw <- NULL
+
+# criar coluna para nota final, média de todas as notas
+enem <- transform(enem,NU_NOTA_FINAL = (NU_NOTA_CN + NU_NOTA_CH + NU_NOTA_LC + NU_NOTA_MT + NU_NOTA_REDACAO) / 5)
+
+# eliminar colunas desnecessárias após a limpeza dos dados
+enem$IN_TREINEIRO <- NULL
+enem$TP_PRESENCA_CN <- NULL
+enem$TP_PRESENCA_CH <- NULL
+enem$TP_PRESENCA_LC <- NULL
+enem$TP_PRESENCA_MT <- NULL
+
+
+# cria o dataset com 10000 linhas para montar o gráfico de correlação usando ggpars
+df_cor <- head(enem, 10000)[,c(9,10,11,12,13,14,15,16)]
+
+# converte os atributos categóricos em valores numéricos para calcular a correlação com a nota
+# Q001
+df_cor$Q001 <- factor(df_cor$Q001, levels = c('A','B','C','D','E','F','G'), labels=c(1,2,3,4,5,6,7))
+df_cor$Q001 <- as.integer(df_cor$Q001)
+
+# Q002
+df_cor$Q002 <- factor(df_cor$Q002, levels = c('A','B','C','D','E','F','G'), labels=c(1,2,3,4,5,6,7))
+df_cor$Q002 <- as.integer(df_cor$Q002)
+
+# Q006
+df_cor$Q006 <- factor(df_cor$Q006, levels = c('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'), labels=c(1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17))
+df_cor$Q006 <- as.integer(df_cor$Q006)
+
+# Q010
+df_cor$Q010 <- factor(df_cor$Q010, levels = c('A','B','C','D','E'), labels=c(1,2,3,4,5))
+df_cor$Q010 <- as.integer(df_cor$Q010)
+
+# Q024
+df_cor$Q024 <- factor(df_cor$Q024, levels = c('A','B','C','D','E'), labels=c(1,2,3,4,5))
+df_cor$Q024 <- as.integer(df_cor$Q024)
+
+# Q025
+df_cor$Q025 <- factor(df_cor$Q025, levels = c('A','B'), labels=c(1,2))
+df_cor$Q025 <- as.integer(df_cor$Q025)
+
+# Q027
+df_cor$Q027 <- factor(df_cor$Q027, levels = c('A','B','C','D','E'), labels=c(1,2,3,4,5))
+df_cor$Q027 <- as.integer(df_cor$Q027)
+
+
+# Adiciona as descrições aos atributos categóricos
+enem$TP_COR_RACA <- factor(enem$TP_COR_RACA, levels = c(0,1,2,3,4),
+                         labels=c('Não Declarada',
+                                  'Branca',
+                                  'Preta',
+                                  'Parda',
+                                  'Índigena'))
+                                  
+enem$Q001 <- factor(enem$Q001, levels = c('A','B','C','D','E','F','G'),
+                         labels=c('Nunca estudou',
+                                  '4ª série/5º ano do EF incompleto',
+                                  '4ª série/5º ano do EF Completo',
+                                  '8ª série/9º ano do EF Completo',
+                                  'EM Completo',
+                                  'Faculdade Completa',
+                                  'Pós-graduação Completa'))
+
+enem$Q002 <- factor(enem$Q002, levels = c('A','B','C','D','E','F','G'),
+                         labels=c('Nunca estudou',
+                                  '4ª série/5º ano do EF incompleto',
+                                  '4ª série/5º ano do EF Completo',
+                                  '8ª série/9º ano do EF Completo',
+                                  'EM Completo',
+                                  'Faculdade Completa',
+                                  'Pós-graduação Completa'))
+
+enem$Q006 <- factor(enem$Q006,levels = c('A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'),
+                         labels=c('Nenhuma renda.',
+                                    'Até R$ 937,00.',
+                                    'De R$ 937,01 até R$ 1.405,50',
+                                    'De R$ 1.405,51 até R$ 1.874,00',
+                                    'De R$ 1.874,01 até R$ 2.342,50',
+                                    'De R$ 2.342,51 até R$ 2.811,00',
+                                    'De R$ 2.811,01 até R$ 3.3748,00',
+                                    'De R$ 3.748,01 até R$ 4.685,00',
+                                    'De R$ 4.685,01 até R$ 5.622,00',
+                                    'De R$ 5.622,01 até R$ 6.559,00',
+                                    'De R$ 6.559,01 até R$ 7.496,00',
+                                    'De R$ 7.496,01 até R$ 8.433,00',
+                                    'De R$ 8.433,01 até R$ 9.370,00',
+                                    'De R$ 9.370,01 até R$ 11.244,00',
+                                    'De R$ 11.244,01 até R$ 14.055,00',
+                                    'De R$ 14.055,01 até R$ 18.740,00',
+                                    'Mais de R$ 18740,00'))
+    
+enem$Q010 <- factor(enem$Q010, levels = c('A','B','C','D','E'),
+                         labels=c('Não',
+                                  'Sim, um',
+                                  'Sim, dois',
+                                  'Sim, três',
+                                  'Sim, quatro ou mais'))
+
+enem$Q024 <- factor(enem$Q024, levels = c('A','B','C','D','E'),
+                         labels=c('Não',
+                                  'Sim, um',
+                                  'Sim, dois',
+                                  'Sim, três',
+                                  'Sim, quatro ou mais'))
+
+enem$Q025 <- factor(enem$Q025, levels = c('A','B'), labels=c('Não','Sim'))
+
+enem$Q027 <- factor(enem$Q027, levels = c('A','B','C','D','E'),
+                         labels=c('Somente em escola pública',
+                                  'Escola pública e privada SEM bolsa integral.',
+                                  'Escola pública e privada COM bolsa  integral.',
+                                  'Escola privada SEM bolsa integral',
+                                  'Escola privada COM bolsa integral'))
+
+
+```
+
+# Seção de Gráficos Univariados
+
+Nesta seção são plotados em gráficos as principais variáveis do dataset para análise exploratória de dados.
+
+```{r echo=FALSE, Univariate_Plots}
+
+str(enem)
+
+# Relação entre a nota final e quantidade
+ggplot(data= enem, aes(x= NU_NOTA_FINAL)) +
+       geom_histogram(binwidth=50,fill = "#0073C2FF") +
+	     labs(x="Nota Final",y= "Frequência") +
+	     scale_y_continuous(labels= scales::comma) +
+       ggtitle("Nota Final x Frequência")
+
+# Relação entre o log(nota final) e quantidade
+ggplot(data= enem, aes(x= NU_NOTA_FINAL)) +
+       geom_histogram(binwidth=50,fill = "#0073C2FF") +
+ 	     scale_y_continuous(labels= scales::comma) +
+       scale_y_log10() +
+	     labs(x="Nota Final",y= "Frequência") +
+       ggtitle("Nota Final x Frequência (log10)")
+  
+```
+
+Fazendo a transformação do eixo Y em log10 podemos visualizar melhor a distribuição das notas dos estudantes.A distribuição tende a ser bimodal com grande maioria das notas entre 430 e 570. Com a utilização do log10 é possível perceber que existe um gap entre aproximadamente as notas 50 e 100 que não é percebido com a utilização normal da escala de Y.
+
+```{r echo=FALSE, Univariate_Plots1}
+
+# Escolaridade Pai ou Home Responsável
+# Calculando a frequência
+df <- enem %>%
+  group_by(Q001) %>%
+  summarise(freq = n())
+
+ggplot(data= df,aes(x= Q001, y=freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Escolaridade",y= "Frequência") +
+       ggtitle("Escolaridade Pai ou Homem Responsável") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Escolaridade Mãe ou Mulher Responsável
+# Calculando a frequência
+df <- enem %>%
+  group_by(Q002) %>%
+  summarise(freq = n())
+
+ggplot(data= df, aes(x= Q002, y= freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Escolaridade",y= "Frequência") +
+       ggtitle("Escolaridade Mãe ou Mulher Responsável") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Renda Mensal da Família
+# Calculando a frequência, para não exibir a frequência em notação científica o valor foi divido por 1.000
+df <- enem %>%
+  group_by(Q006) %>%
+  summarise(freq = n() / 1000)
+
+ggplot(data= df, aes(x= Q006, y= freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Renda Mensal da Família",y= "Frequência x 1.000") +
+       ggtitle("Renda Mensal da Família") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Carro na Residência
+# Calculando a frequência, para não exibir a frequência em notação científica o valor foi divido por 1.000
+df <- enem %>%
+  group_by(Q010) %>%
+  summarise(freq = n()/1000)
+
+ggplot(data= df, aes(x= Q010, y= freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Carro",y= "Frequência x 1.000") +
+       ggtitle("Carro na Residência") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Computador na Residência
+# Calculando a frequência, para não exibir a frequência em notação científica o valor foi divido por 1.000
+df <- enem %>%
+  group_by(Q024) %>%
+  summarise(freq = n()/1000)
+
+ggplot(data= df, aes(x= Q024, y= freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Computador",y= "Frequência x 1.000") +
+       ggtitle("Computador na Residência") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Acesso a Internet na Residência
+# Calculando a frequência, para não exibir a frequência em notação científica o valor foi divido por 1.000
+df <- enem %>%
+  group_by(Q025) %>%
+  summarise(freq = n()/1000)
+
+ggplot(data= df, aes(x= Q025, y= freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Acesso a Internet",y= "Frequência x 1.000") +
+       ggtitle("Acesso a Internet na Residência") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+# Tipo de Escola
+# Calculando a frequência, para não exibir a frequência em notação científica o valor foi divido por 1.000
+df <- enem %>%
+  group_by(Q027) %>%
+  summarise(freq = n()/1000)
+
+ggplot(data= df, aes(x= Q027, y= freq)) +
+       geom_col(fill = "#0073C2FF") +
+ 	     labs(x="Tipo de Escola",y= "Frequência x 1.000") +
+       ggtitle("Tipo de Escola que o Candidato Frequentou") +
+       theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+
+```
+
+# Análise Univariada
+
+### Qual é a estrutura do conjunto de dados?
+O conjunto de dados contém 652.563 observações com 16 variáveis (NU_IDADE, TP_SEXO, TP_COR_RACA, NU_NOTA_CN, NU_NOTA_CH, NU_NOTA_LC,NU_NOTA_MT, NU_NOTA_REDACAO,Q001, Q002, Q006, Q010, Q024, Q025, Q027). 
+As variáveis TP_SEXO, TP_COR_RACA, Q001, Q002, Q006, Q010, Q024, Q025, Q027 são do tipo factor com os sequintes níveis:
+
+TP_SEXO - Sexo: 
+
+* F
+* M
+
+
+TP_COR_RACA - Raça:
+
+* Não Declarada
+* Branca 
+* Preta
+* Parda
+* Amarela
+* Indígena 
+
+Q001 - Até que série seu pai, ou o homem responsável por você, estudou?:
+
+* Nunca estudou
+* 4ª série/5º ano do EF incompleto
+* 4ª série/5º ano do EF Completo
+* 8ª série/9º ano do EF Completo
+* EM Completo
+* Faculdade Completa
+* Pós-graduação Completa
+* Não sei
+
+Q002 - Até que série sua mãe, ou a mulher responsável por você, estudou?:
+
+* Nunca estudou
+* 4ª série/5º ano do EF incompleto
+* 4ª série/5º ano do EF Completo
+* 8ª série/9º ano do EF Completo
+* EM Completo
+* Faculdade Completa
+* Pós-graduação Completa
+* Não sei
+
+Q006 - Qual é a renda mensal de sua família?: 
+
+* Nenhuma renda
+* Até R$ 937,00
+* De R$ 937,01 até R$ 1.405,50
+* De R$ 1.405,51 até R$ 1.874,00
+* De R$ 1.874,01 até R$ 2.342,50
+* De R$ 2.342,51 até R$ 2.811,00
+* De R$ 2.811,01 até R$ 3.3748,00
+* De R$ 3.748,01 até R$ 4.685,00
+* De R$ 4.685,01 até R$ 5.622,00
+* De R$ 5.622,01 até R$ 6.559,00
+* De R$ 6.559,01 até R$ 7.496,00
+* De R$ 7.496,01 até R$ 8.433,00
+* De R$ 8.433,01 até R$ 9.370,00
+* De R$ 9.370,01 até R$ 11.244,00
+* De R$ 11.244,01 até R$ 14.055,00
+* De R$ 14.055,01 até R$ 18.740,00
+* Mais de R$ 18740,00
+  
+Q010 - Na sua residência tem carro?:
+
+* Não
+* Sim, um
+* Sim, dois
+* Sim, três
+* Sim, quatro ou mais
+
+Q024 - Na sua residência tem computador?:
+
+* Não
+* Sim, um
+* Sim, dois
+* Sim, três
+* Sim, quatro ou mais
+
+Q025 - Na sua residência tem acesso à Internet?: 
+
+* Não
+* Sim
+
+Q027 - Em que tipo de escola você frequentou o Ensino Médio?:
+
+* Somente em escola pública
+* Escola pública e privada SEM bolsa integral
+* Escola pública e privada COM bolsa  integral
+* Escola privada SEM bolsa integral
+* Escola privada COM bolsa integral
+
+
+### Quais são os principais atributos de interesse deste conjunto de dados?
+Os principais atributos do conjunto de dados são o Nível de Instrução da Mãe (Q001) e do Pai (Q002), Renda Familiar (Q006),Na sua residência tem carro? (Q010),Na sua residência tem computador? (Q024),Na sua residência tem acesso à Internet? (Q025) e Tipo de Escola (Q0027). 
+
+A análise pretende desmonstrar que influência de fatores socioeconômicos tem influência no resultado obtido na prova do ENEM 2017.
+
+Analisando o conjunto de dados eu cheguei a conclusão que será dificil fazer um modelo preditivo para determinar a nota do candidato, mas será possível comprovar que fatores socioeconômicos tem grande impacto no resultado.
+
+### Quais outros atributos você acha que podem lhe auxiliar na investigação destes atributos de interesse?
+No conjunto de dados existem outros atributos como raça, idade, sexo e nota de cada prova, mas esses atributos não serão utilizados para essa análise. 
+
+### Você criou novas variáveis a partir dos atributos existentes no conjunto de dados?
+Sim, a variável Nota Final (NU_NOTA_FINAL) que é a média entre as notas das provas de Ciências da Natureza (NU_NOTA_CN), Ciências Humanas (NU_NOTA_CH), Linguagens e Códigos (NU_NOTA_LC), Matemática (NU_NOTA_MT)  e Redação (NU_NOTA_REDACAO). Esta variável quantitativa será utilizada como base para a análise explorátoria de dados.
+
+### Dos atributos investigados, distribuições incomuns foram encontradas? Você aplicou operações nos dados para limpá-los, ajustá-los ou mudar a forma dos dados? Se sim, por quê?
+Nos gráficos de Nível de Educação do Pai/Mãe existem muitos candidatos que responderam "Não Sei", para evitar distorções os mesmo foram desconsiderados do conjunto de dados.
+
+Também foram aplicados filtros no conjunto de dados para considerar apenas os candidatos que realizaram todas as provas e que não fossem treineiros, transformações para variáveis do tipo factor para exibir as descrições ao invés de códigos e eliminado os atributos desnecessários para a análise.
+
+# Seção de Gráficos Bivariados
+```{r echo=FALSE, Bivariate_Plots}
+
+
+# cria tabela para exibir a correlação entre os atributos socioeconônicos
+cor_var <- data.frame("Atributo" = 
+                      c("Q001 - Escolaridade do Pai ou Homem Responsável",
+					            "Q002 - Escolaridade da Mãe ou Mulher Responsável",
+					            "Q006 - Renda Mensal Familiar", 
+					            "Q010 - Carro na Residência", 
+					            "Q024 - Computador na Residência", 
+					            "Q025 - Acesso a Internet na Residência",
+					            "Q027 - Tipo de Escola Frequentada"), 
+		    	            "Nota" = 0.0)
+
+# calcula a correlação dos atributos em relação a nota
+cor_var[1,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q001)
+cor_var[2,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q002)
+cor_var[3,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q006)
+cor_var[4,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q010)
+cor_var[5,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q024)
+cor_var[6,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q025)
+cor_var[7,"Nota"] <- cor(df_cor$NU_NOTA_FINAL,df_cor$Q027)
+
+# exibe a correlação dos atrinutos em ordem decrescente
+head(cor_var[order(cor_var$Nota, decreasing=T),],7)
+
+ggpairs(df_cor,
+	  lower = list(continuous = wrap("points", shape = I('.'))), 
+  	upper = list(combo = wrap("box", outlier.shape = I('.'))),
+	  cardinality_threshold = 17) +
+	  theme_grey(base_size = 9) 
+```
+
+A tabela e o gráfico acima mostram a correlação entre os fatores socioeconômicos e o impacto no resultado obtido na prova. Podemos observar que os atributos: renda mensal familiar, tipo de escolar frequentada e a existência de computador na residência são os que mais influênciam no resultado.
+
+Vamos criar um gráfico de dispersão para cada uma das variáveis categóricas e observar a relação entre a nota final do candidato.
+
+*Nota: Como o conjunto de dados não possui uma segunda variável quantitativa com forte correção entre a nota final, foi utilizado o gráfico de dispersão com as variáveis categóricas.* 
+
+Como existe uma grande quantidade de dados, iremos considerar para os gráficos de dispersão apenas os candidatos que obtiveram uma nota acima da nota média geral.
+
+
+```{r echo=FALSE, Bivariate_Plots1}
+
+# Renda Mensal Familiar x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q006,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+
+ggplot(data= df, aes(x=Q006, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.05, position= position_jitter(h= 0),color='blue') +
+       labs(x="Renda Mensal Familiar",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Renda Mensal Familiar x Nota Final") 
+
+
+# Tipo de Escola x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q027,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+
+ggplot(data= df, aes(x=Q027, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.05, position= position_jitter(h= 0),color='blue') +
+       labs(x="Tipo de Escola",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Tipo de Escola x Nota Final") 
+
+
+# Computador na Residência x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q024,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q024, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.3, position= position_jitter(h= 0),color='blue') +
+       labs(x="Computador na Residência",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Computador na Residência x Nota Final") 
+
+
+# Escolaridade do Pai ou Homem Responsável x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q001,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q001, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.3, position= position_jitter(h= 0),color='blue') +
+       labs(x="Escolaridade",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Escolaridade do Pai ou Homem Responsável x Nota Final") 
+
+
+# Escolaridade da Mãe ou Mulher Responsável x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q002,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q002, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.3, position= position_jitter(h= 0),color='blue') +
+       labs(x="Escolaridade",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Escolaridade da Mãe ou Mulher Responsável x Nota Final")
+
+
+# Carro na Residência x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q010,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q010, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.3, position= position_jitter(h= 0),color='blue') +
+       labs(x="Carro na Residência",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Carro na Residência x Nota Final")
+
+
+# Acesso a Internet x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q025,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q025, y=NU_NOTA_FINAL),pch='.') +
+       geom_jitter(alpha=0.3, position= position_jitter(h= 0),color='blue') +
+       labs(x="Acesso a Internet",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Acesso a Internet na Residência x Nota Final")
+
+```
+
+Agora, vamos criar gráficos de boxplot para cada uma das variáveis categóricas que é mais adequado para esse tipo de variável.
+
+```{r echo=FALSE, Bivariate_Plots2}
+
+# Renda Mensal Familiar x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q006,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q006, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Renda Mensal Familiar",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Renda Mensal Familiar x Nota Final") 
+
+by(enem$NU_NOTA_FINAL,enem$Q006,summary)
+
+```
+
+Neste caso nenhuma supresa, podemos ver claramente que quanto maior a renda familiar dos canditados melhores são os resultados obtidos na prova.
+
+```{r echo=FALSE, Bivariate_Plots3}
+
+# Tipo de Escola x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q027,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+
+ggplot(data= df, aes(x=Q027, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Tipo de Escola",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Tipo de Escola x Nota Final") 
+
+by(enem$NU_NOTA_FINAL,enem$Q027,summary)
+
+```
+
+Os canditatos que frequentaram escolas privadas, seja parcialmente ou totalmente tem obtém os melhores resultados na prova.
+
+```{r echo=FALSE, Bivariate_Plots4}
+
+# Computador na Residência x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q024,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q024, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Computador na Residência",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Computador na Residência x Nota Final") 
+
+by(enem$NU_NOTA_FINAL,enem$Q024,summary)
+
+```
+
+Aqui uma supresa na minha avaliação, eu imaginava que a educação dos pais teriam maior relevância no resultado do candidato do que a existência de computador na residência. 
+
+```{r echo=FALSE, Bivariate_Plots5}
+
+# Escolaridade do Pai ou Homem Responsável x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q001,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q001, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Escolaridade",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Escolaridade do Pai ou Homem Responsável x Nota Final") 
+
+by(enem$NU_NOTA_FINAL,enem$Q001,summary)
+
+# Escolaridade da Mãe ou Mulher Responsável x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q002,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q002, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Escolaridade",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Escolaridade da Mãe ou Mulher Responsável x Nota Final")
+
+by(enem$NU_NOTA_FINAL,enem$Q002,summary)
+
+```
+
+Neste caso, também nenhuma surpresa, quanto melhor a educação dos pais dos candidatos melhores serão os resultados obtidos na prova.
+
+```{r echo=FALSE, Bivariate_Plots6}
+
+# Carro na Residência x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q010,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q010, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Carro na Residência",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Carro na Residência x Nota Final")
+
+by(enem$NU_NOTA_FINAL,enem$Q010,summary)
+
+```
+
+A existência de carro na residência está muito relacionado a renda mensal familiar do canditado, ou seja, a existência de carro na residência indica que há uma renda mensal familiar melhor e consequentemente resultados melhores dos candidatos na prova.
+
+```{r echo=FALSE, Bivariate_Plots7}
+
+# Acesso a Internet x Nota Final
+# Como a quantidade de registros é muito grande os dados para o gráfico foram limitados para exibir os canditados que tiverem notas acima da média.
+df <- subset(enem,NU_NOTA_FINAL > mean(NU_NOTA_FINAL)) %>%
+	group_by(Q025,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+ 
+ggplot(data= df, aes(x=Q025, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Acesso a Internet",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Acesso a Internet na Residência x Nota Final")
+
+by(enem$NU_NOTA_FINAL,enem$Q025,summary)
+
+
+```
+
+Aqui também vejo uma forte relação a renda mensal familiar do canditado, ou seja, a existência de acesso a internet na residência indica que há uma renda mensal familiar melhor e consequentemente resultados melhores dos candidatados na prova.
+
+# Análise Bivariada
+
+### Discuta sobre alguns dos relacionamentos observados nesta parte da investigação. Como os atributos de interesse variaram no conjunto de dados?
+
+Podemos observar que os atributos que mais impactam o resultado do candidato na prova são : Renda Mensal Familiar (Q006), Tipo de Escola Frequentada (Q027) e Computador da Residência (Q024).
+
+Analisando os gráficos de histograma e dispersão podemos vizualizar um crescimento linear para o atributo renda mensal familiar. Quanto maior a renda mensal familiar do candidato melhor em média é o resultado obtido na prova.
+
+No caso do tipo de escola que o candidato frequentou, podemos notar um distribuição não linear entre as categorias. Por exemplo, a média dos candidatos que estudaram apenas em escola pública é maior do que aqueles que estudaram parte em escola pública e parte em em escola privada. Analisando o gráfico de Tipo de Escola x Frequência podemos ter uma pista de qual o motivo, a quantidade de candidatos que estudaram apenas em escola pública é muito maior que a quantidade de candidatos que estudatam parte em escola pública e parte em escola privada, fazendo com que os outliers com baixas notas puxarem a média geral para baixo. Mas para confirmar isso, deveria ser objeto de outra análise combinando outros atributos para comprovar essa distorção, uma vez que, os candidatos que estudaram em escolas privadas, mesmo parcialmente, tende a ter um contéudo melhor e consequentemente um resultado melhor na prova.
+
+
+A existência de computador na residência do candidato tem uma distribuição linear, no entanto, com um salto quando não existe computador na residência para quanto tem, porém, mas acentuada quanto a quantidade de computadores na residência. 
+
+
+
+### Você observou algum relacionamento interessante entre os outros atributos (os que não são de interesse)?
+
+Os atributos Escolaridade dos Pais também são interessantes, apresentam uma distribuição linear e quanto maior a escolaridade melhores são os resultados obtidos pelos candidatos na prova.
+
+Os atributos carro e acesso a internet na residência são os menos interessantes. A existência do carro na residência devido ao forte relacionamento com a renda mensal familiar, ou seja, uma renda melhor resulta na existência de carro na residência. No caso de acesso a internet na residência vejo um forte relacionamento com a existência do computador, ou seja, geralmente se existe um computador o mesmo está conectado a internet.
+
+
+### Qual foi o relacionamento mais forte encontrado?
+
+O relacionamento mais forte encontrado foi a renda mensal familiar, neste caso, podemos observar uma diferença de até 143 pontos na nota média dos candidatos da renda mensal familiar mais baixa até a mais alta.
+
+
+
+# Seção de Gráficos Multivariados
+
+```{r echo=FALSE, Multivariate_Plots}
+
+# Nota Média por Renda Mensal Familiar x Tipo de Escola
+df = enem %>% 
+	select (Q006,Q027,NU_NOTA_FINAL) %>%
+	group_by (Q006,Q027) %>%
+	summarise(mean = mean(NU_NOTA_FINAL))
+
+ggplot(data= df, aes(x= Q006, y= mean, group=Q027, color=Q027)) +
+    geom_line(stat = "identity", size=1) +
+	  scale_y_continuous(breaks =seq(0,1000,50)) +
+    labs(x="Renda Mensal Familiar",y= "Nota Média",color = "Tipo de Escola") +
+ 	  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+    ggtitle("Nota Média por Renda Mensal Familiar x Tipo de Escola")
+
+# Nota Média por Renda Mensal Familiar x Computador na Residência
+df = enem %>% 
+	select (Q006,Q024,NU_NOTA_FINAL) %>%
+	group_by (Q006,Q024) %>%
+	summarise(mean = mean(NU_NOTA_FINAL))
+
+ggplot(data= df, aes(x= Q006, y= mean, group=Q024, color=Q024)) +
+    geom_line(stat = "identity", size=1) +
+    scale_y_continuous(breaks =seq(0,1000,50)) +
+ 	  labs(x="Renda Mensal Familiar",y= "Nota Média",color = "Computador na Residência") +
+    ggtitle("Nota Média por Renda Mensal Familiar x Computador na Residência") +
+ 	  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Nota Média por Renda Mensal Familiar x Escolaridade do Pai ou Homem Responsável
+df = enem %>% 
+	select (Q006,Q001,NU_NOTA_FINAL) %>%
+	group_by (Q006,Q001) %>%
+	summarise(mean = mean(NU_NOTA_FINAL))
+
+ggplot(data= df, aes(x= Q006, y= mean, group=Q001, color=Q001)) +
+    geom_line(stat = "identity", size=1) +
+	  scale_y_continuous(breaks =seq(0,1000,50)) +
+ 	  labs(x="Renda Mensal",y= "Nota Média",color = "Escolaridade") +
+    ggtitle("Nota Média por Renda Mensal Familiar x Escolaridade do Pai") +
+ 	  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Nota Média por Renda Mensal Familiar x Escolaridade da Mãe ou Mulher Responsável
+df = enem %>% 
+	select (Q006,Q002,NU_NOTA_FINAL) %>%
+	group_by (Q006,Q002) %>%
+	summarise(mean = mean(NU_NOTA_FINAL))
+
+ggplot(data= df, aes(x= Q006, y= mean, group=Q002, color=Q002)) +
+    geom_line(stat = "identity", size=1) +
+	  scale_y_continuous(breaks =seq(0,1000,50)) +
+ 	  labs(x="Renda Mensal",y= "Nota Média",color = "Escolaridade") +
+    ggtitle("Nota Média por Renda Mensal Familiar x Escolaridade da Mãe") +
+ 	  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+# Análise Multivariada
+
+### Discuta sobre os relacionamentos observados nesta parte da investigação. Quais atributos que fortaleceram os demais na observação das variáveis de interesse?
+
+Na análise gráfica multivariada podemos observar que a renda mensal familiar com binada com os demais atributos tipo de escola, computador na residência e escolaridade dos pais mantém no geral uma distribuição linear. 
+
+Dessa forma, fortacelendo a observação predominante de que quanto melhor  renda mensal familiar dos canditados melhores serão os resultados obtidos na prova.
+
+
+
+### Interações surpreendentes e/ou interessantes foram encontradas entre os atributos?
+
+Uma surpresa que pôde ser observada facilmente com a utilização dos gráficos multivariados foi a nota média para a renda mensal familiar igual a "Até R$ 937,00", diferentemente do comportamento apresentado pela demais faixas que tendem a crescer quando a renda mensal familiar aumenta, foi observado uma queda em relação a sua predecessora "Nenhuma Renda".
+
+A minha suspeita para esse comportamento deve ser devido a muitos candidatos terem respondido 'Nenhum Renda', mas tendo sua família um renda superior.
+
+### OPCIONAL: Modelos foram criados usando este conjunto de dados? Discuta sobre os pontos fortes e as limitações do seu modelo.
+
+Não foram utilizados modelos preditivos para essa análise, considerando que a análise foi feita com base em fatores socioeconônicos não havia atributos quantitativos com forte correlação com a nota final para criar um modelo preditivo.
+
+------
+
+# Gráficos Finais e Sumário
+
+### Primeiro Gráfico
+```{r echo=FALSE, Plot_One}
+
+# Relação entre o log(nota final) e quantidade
+ggplot(data= enem, aes(x= NU_NOTA_FINAL)) +
+       geom_histogram(binwidth=50,fill = "#0073C2FF") +
+ 	     scale_y_continuous(labels= scales::comma) +
+       scale_y_log10() +
+	     labs(x="Nota Final",y= "Frequência") +
+       ggtitle("Resultado Enem - Nota Final (log10)")
+
+```
+
+### Descrição do Primeiro Gráfico
+
+A distribuição tende a ser bimodal com grande maioria das notas entre 430 e 570. Podemos perceber que existe um gap entre aproximadamente as notas 50 e 100.
+
+### Segundo Gráfico
+
+```{r echo=FALSE, Plot_Two}
+# Renda Mensal Familiar x Nota Final
+df <- subset(enem,Q006 != 'Nenhuma renda.') %>%
+	group_by(Q006,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+
+ggplot(data= df, aes(x=Q006, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Renda Mensal Familiar",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Nota Final por Renda Mensal Familiar") 
+
+
+```
+
+### Descrição do Segundo Gráfico
+
+Os resultados obtidos pelos candidatos melhoram conforme aumenta a renda familiar. Em média os candidatos com renda mensal familiar mínima de "Até R\$ 937,00" tem uma nota média de 491,0, enquanto os que tem renda mensal familiar máxima de "Mais de R\$ 18.740,00" tem nota média de 616,8 uma diferença de 125,8 pontos.
+
+*Nota: a categoria 'Nenhuma Renda' foi excluída para esse gráfico, pois na análise multivariada apresentou um comportamento diferente da tendência. No qual a suspeita seja que alguns candidatos tenham respondidos de forma errada a pergunta sobre a renda mensal familiar.*
+
+
+
+### Terceiro Gráfico
+```{r echo=FALSE, Plot_Three}
+
+# Tipo de Escola x Nota Final
+df <- enem %>%
+	group_by(Q027,NU_NOTA_FINAL) %>%
+	summarise(count = n())
+
+ggplot(data= df, aes(x=Q027, y=NU_NOTA_FINAL),pch='.') +
+       geom_boxplot(color='blue') +
+       labs(x="Tipo de Escola",y= "Nota Final") +
+       scale_color_brewer(type = 'div') +
+	     theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+       ggtitle("Nota Final por Tipo de Escola") 
+
+```
+
+### Descrição do Terceiro Gráfico
+
+O segundo atributo mais forte que indica  que os resultados obtidos pelos candidatos melhoram conforme o tipo de escola que o candidato frequentou. Em média os candidatos frequentaram apenas escola pública tem uma nota média de 514,0, enquanto os que frequentaram apenas escola privada tem nota média de 614,6 uma diferença de 100,6 pontos.
+
+------
+
+# Reflexão
+
+O conjunto de dados da prova do ENEM 2017 contém informação de 597.489 candidatos do estado de São Paulo que realizaram todas as provas e 16 atributos. A análise foi realizada primeiramente com o entendimento das variáveis individuais através de gráficos do tipo histograma. Posteriormente foi utilizado gráficos de dispersão e boxes para a análise de comportamento dos dados.
+
+O modelo preditivo não foi utilizado para esse conjunto de dados, como foquei a minha análise no impacto que fatores socioeconômicos têm no resultado do candidato na prova que são categóricos, não foi possível determinar um modelo.
+
+Dos atributos analisados, os que mais se correlacionam com o resultado da prova são: renda mensal familiar, tipo de escola e a existência de computador na residência, ou seja, no geral, quanto maior a renda mensal familiar maior e nota média dos candidatos, os candidato que estudaram apenas em escola pública têm um desempenho menor que aqueles que estudaram apenas em escola privada, e por fim, aqueles que possuem não possuem computador na residência têm um desempenho menor que os que possuem um ou mais computadores.
+
+A análise não quer dizer que todos os candidatos que tenham os fatores socioecônomicos bons sempre terão bons resultados na prova e nem que todos aqueles que não tenham fatores socioecônomicos ruins terão péssimos resultados na prova. O preparo do candidato também faz a diferença.
+
+No entanto, de forma geral, podemos concluir que fatores socioecômicos impactam no resultado obtido pelo candidato na prova, podemos identificar padrões que se repetem nos resultados obtidos que possuem o mesmo perfil.
+

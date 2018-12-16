@@ -1,0 +1,21 @@
+
+
+Dados Enem:
+http://portal.inep.gov.br/microdados
+
+Links arquivo:
+http://download.inep.gov.br/microdados/microdados_enem2017.zip
+
+Foruns:
+https://stackoverflow.com/
+
+Sites relacionados a Data Science, R:
+
+http://minerandodados.com.br/
+
+https://r4stats.com/examples/graphics-ggplot2/
+
+https://sillasgonzaga.github.io/
+
+
+
